@@ -1,0 +1,362 @@
+{
+  "bitext_test_split": {
+    "accuracy": 0.9958228905597326,
+    "f1_macro": 0.9958227175776906,
+    "n_test": 1197,
+    "report": {
+      "cancel_order": {
+        "precision": 1.0,
+        "recall": 0.985,
+        "f1-score": 0.9924433249370277,
+        "support": 200.0
+      },
+      "change_order": {
+        "precision": 0.9802955665024631,
+        "recall": 1.0,
+        "f1-score": 0.9900497512437811,
+        "support": 199.0
+      },
+      "check_invoice": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 200.0
+      },
+      "complaint": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 200.0
+      },
+      "delivery_options": {
+        "precision": 0.995,
+        "recall": 1.0,
+        "f1-score": 0.9974937343358395,
+        "support": 199.0
+      },
+      "track_order": {
+        "precision": 1.0,
+        "recall": 0.9899497487437185,
+        "f1-score": 0.9949494949494949,
+        "support": 199.0
+      },
+      "accuracy": 0.9958228905597326,
+      "macro avg": {
+        "precision": 0.9958825944170772,
+        "recall": 0.995824958123953,
+        "f1-score": 0.9958227175776906,
+        "support": 1197.0
+      },
+      "weighted avg": {
+        "precision": 0.9958929137293151,
+        "recall": 0.9958228905597326,
+        "f1-score": 0.9958268739454467,
+        "support": 1197.0
+      }
+    },
+    "note": "high accuracy expected: dataset is template-based, phrases within intent are similar"
+  },
+  "synthetic_set": {
+    "n_total": 25,
+    "n_auto": 20,
+    "n_escalated": 5,
+    "auto_accuracy": 0.9,
+    "escalation_rate": 0.2,
+    "note": "confidence lower because model never saw real shipment IDs in training",
+    "results": [
+      {
+        "text": "where is my shipment MRL-2024-8831 it was supposed to arrive yesterday",
+        "expected": "track_order",
+        "predicted": "track_order",
+        "confidence": 0.8,
+        "shipment_id": "MRL-2024-8831",
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "pls track order MRL-2024-1290 for me",
+        "expected": "track_order",
+        "predicted": "track_order",
+        "confidence": 0.6776,
+        "shipment_id": "MRL-2024-1290",
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "MRL-2024-5567 hasnt moved in 5 days whats going on",
+        "expected": "track_order",
+        "predicted": "change_order",
+        "confidence": 0.4139,
+        "shipment_id": "MRL-2024-5567",
+        "auto_respond": false,
+        "correct": false
+      },
+      {
+        "text": "can you check the ETA for MRL-2024-0042",
+        "expected": "track_order",
+        "predicted": "track_order",
+        "confidence": 0.5293,
+        "shipment_id": "MRL-2024-0042",
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "i need to know where my cargo MRL-2024-7710 is right now",
+        "expected": "track_order",
+        "predicted": "check_invoice",
+        "confidence": 0.4099,
+        "shipment_id": "MRL-2024-7710",
+        "auto_respond": false,
+        "correct": false
+      },
+      {
+        "text": "my package MRL-2024-3398 is late can you help",
+        "expected": "track_order",
+        "predicted": "check_invoice",
+        "confidence": 0.3222,
+        "shipment_id": "MRL-2024-3398",
+        "auto_respond": false,
+        "correct": false
+      },
+      {
+        "text": "tracking number MRL-2024-9183 says delivered but i never got it",
+        "expected": "complaint",
+        "predicted": "track_order",
+        "confidence": 0.4798,
+        "shipment_id": "MRL-2024-9183",
+        "auto_respond": false,
+        "correct": false
+      },
+      {
+        "text": "want to file a complaint about shipment MRL-2024-2201 it arrived damaged",
+        "expected": "complaint",
+        "predicted": "complaint",
+        "confidence": 0.8286,
+        "shipment_id": "MRL-2024-2201",
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "MRL-2024-6612 was handled terribly the box was crushed",
+        "expected": "complaint",
+        "predicted": "complaint",
+        "confidence": 0.3407,
+        "shipment_id": "MRL-2024-6612",
+        "auto_respond": false,
+        "correct": true
+      },
+      {
+        "text": "i want to complain about MRL-2024-4450 the driver was rude",
+        "expected": "complaint",
+        "predicted": "complaint",
+        "confidence": 0.8,
+        "shipment_id": "MRL-2024-4450",
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "cancel my order MRL-2024-8831 immediately please",
+        "expected": "cancel_order",
+        "predicted": "cancel_order",
+        "confidence": 0.747,
+        "shipment_id": "MRL-2024-8831",
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "need to cancel shipment MRL-2024-7765 before it ships out",
+        "expected": "cancel_order",
+        "predicted": "cancel_order",
+        "confidence": 0.755,
+        "shipment_id": "MRL-2024-7765",
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "pls cancel MRL-2024-1100 i changed my mind",
+        "expected": "cancel_order",
+        "predicted": "cancel_order",
+        "confidence": 0.8746,
+        "shipment_id": "MRL-2024-1100",
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "how do i cancel order MRL-2024-5523",
+        "expected": "cancel_order",
+        "predicted": "cancel_order",
+        "confidence": 0.9147,
+        "shipment_id": "MRL-2024-5523",
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "i want to change the delivery address for MRL-2024-3344",
+        "expected": "change_order",
+        "predicted": "delivery_options",
+        "confidence": 0.7873,
+        "shipment_id": "MRL-2024-3344",
+        "auto_respond": true,
+        "correct": false
+      },
+      {
+        "text": "can i modify my order MRL-2024-9087 to add one more item",
+        "expected": "change_order",
+        "predicted": "change_order",
+        "confidence": 0.8667,
+        "shipment_id": "MRL-2024-9087",
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "change the recipient name on shipment MRL-2024-2219",
+        "expected": "change_order",
+        "predicted": "delivery_options",
+        "confidence": 0.5097,
+        "shipment_id": "MRL-2024-2219",
+        "auto_respond": true,
+        "correct": false
+      },
+      {
+        "text": "need to update contact info on MRL-2024-6678",
+        "expected": "change_order",
+        "predicted": "change_order",
+        "confidence": 0.7498,
+        "shipment_id": "MRL-2024-6678",
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "what delivery options do i have for MRL-2024-4401",
+        "expected": "delivery_options",
+        "predicted": "delivery_options",
+        "confidence": 0.986,
+        "shipment_id": "MRL-2024-4401",
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "can i change the courier for shipment MRL-2024-1188",
+        "expected": "delivery_options",
+        "predicted": "delivery_options",
+        "confidence": 0.7983,
+        "shipment_id": "MRL-2024-1188",
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "MRL-2024-7733 what shipping methods are available",
+        "expected": "delivery_options",
+        "predicted": "delivery_options",
+        "confidence": 0.9849,
+        "shipment_id": "MRL-2024-7733",
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "show me the invoice for shipment MRL-2024-5510",
+        "expected": "check_invoice",
+        "predicted": "check_invoice",
+        "confidence": 0.8,
+        "shipment_id": "MRL-2024-5510",
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "i need an invoice copy for MRL-2024-3322",
+        "expected": "check_invoice",
+        "predicted": "check_invoice",
+        "confidence": 0.7905,
+        "shipment_id": "MRL-2024-3322",
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "where is my package i dont have the tracking number",
+        "expected": "track_order",
+        "predicted": "track_order",
+        "confidence": 0.567,
+        "shipment_id": null,
+        "auto_respond": true,
+        "correct": true
+      },
+      {
+        "text": "i want to cancel my recent order",
+        "expected": "cancel_order",
+        "predicted": "cancel_order",
+        "confidence": 0.9596,
+        "shipment_id": null,
+        "auto_respond": true,
+        "correct": true
+      }
+    ]
+  },
+  "threshold_analysis": [
+    {
+      "threshold": 0.5,
+      "automation_rate": 0.9958228905597326,
+      "error_rate": 0.0,
+      "auto_count": 1192,
+      "error_count": 0
+    },
+    {
+      "threshold": 0.6,
+      "automation_rate": 0.9908103592314118,
+      "error_rate": 0.0,
+      "auto_count": 1186,
+      "error_count": 0
+    },
+    {
+      "threshold": 0.7,
+      "automation_rate": 0.985797827903091,
+      "error_rate": 0.0,
+      "auto_count": 1180,
+      "error_count": 0
+    },
+    {
+      "threshold": 0.75,
+      "automation_rate": 0.9782790309106099,
+      "error_rate": 0.0,
+      "auto_count": 1171,
+      "error_count": 0
+    },
+    {
+      "threshold": 0.8,
+      "automation_rate": 0.9674185463659147,
+      "error_rate": 0.0,
+      "auto_count": 1158,
+      "error_count": 0
+    },
+    {
+      "threshold": 0.85,
+      "automation_rate": 0.9139515455304928,
+      "error_rate": 0.0,
+      "auto_count": 1094,
+      "error_count": 0
+    },
+    {
+      "threshold": 0.9,
+      "automation_rate": 0.8546365914786967,
+      "error_rate": 0.0,
+      "auto_count": 1023,
+      "error_count": 0
+    },
+    {
+      "threshold": 0.95,
+      "automation_rate": 0.6900584795321637,
+      "error_rate": 0.0,
+      "auto_count": 826,
+      "error_count": 0
+    }
+  ],
+  "entity_extractor": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "tp": 23,
+    "fp": 0,
+    "fn": 0,
+    "total": 25,
+    "note": "n=25, basic check not statistical proof, production needs larger set with varied formats"
+  }
+}
