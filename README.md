@@ -41,10 +41,10 @@ trained two variants to compare:
 
 | Model | Accuracy | F1 macro | Train time | Inference |
 |---|---|---|---|---|
-| TF-IDF + LogReg | 99.58% | 0.9958 | ~2s | <1 ms |
-| DistilBERT | 99.75% | 0.9975 | ~2 min | ~15 ms |
+| TF-IDF + LogReg | 99.58% | 0.9958 | ~0.4s | ~1.6 ms |
+| DistilBERT | 99.83% | 0.9983 | ~2 min | ~17 ms |
 
-chose TF-IDF plus LogReg for production because the accuracy gap is only 0.17% but inference is 15x faster, for a real-time chatbot this is critical
+chose TF-IDF plus LogReg for production because the accuracy gap is only 0.25% but inference is 10x faster, for a real-time chatbot this is critical
 
 ## Results
 
@@ -99,8 +99,6 @@ train classifier:
 ```bash
 python src/intent_classifier.py
 ```
-
-trains TF-IDF plus LogReg, saves model to data/processed/intent_model.pkl
 
 train transformer (optional, for comparison):
 
