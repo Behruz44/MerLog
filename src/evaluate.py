@@ -44,7 +44,7 @@ def evaluate_on_bitext_split(pipe, df):
 def evaluate_on_synthetic(pipe):
     # метрики на synthetic наборе с реальными shipment ID, тут фразы
     # написаны руками и ближе к реальным обращениям, confidence ниже
-    # потому что модель не видела таких формулировок в тренировке
+    # потомучто модель не видела таких формулировок в тренировке
     synthetic_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         "data", "processed", "synthetic_entities.json"
@@ -135,7 +135,7 @@ def run_full_evaluation():
     df = load_processed()
     pipe = load_model()
 
-    # --- Bitext test split ---
+
     print("=== Bitext test split ===")
     bitext_metrics = evaluate_on_bitext_split(pipe, df)
     print(f"accuracy:  {bitext_metrics['accuracy']:.4f}")
@@ -159,7 +159,17 @@ def run_full_evaluation():
     # что он хорошо показывает trade off между долей автоматических
     # ответов и долей ошибок среди них
     thresholds = [0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
-    thr_results = evaluate_thresholds(pipe, X_te, y_te, thresholds)
+
+    # чистый ML без keyword подстраховки
+    print("-- pure ML (no keyword fallback) --")
+    thr_pure = evaluate_thresholds(pipe, X_te, y_te, thresholds, use_keyword_fallback=False)
+    for r in thr_pure:
+        print(f"  t={r['threshold']:.2f}  auto={r['automation_rate']:.3f}  "
+              f"err={r['error_rate']:.3f}  ({r['auto_count']}/{len(X_te)})")
+
+    # ML плюс keyword подстраховка
+    print("-- ML + keyword fallback --")
+    thr_results = evaluate_thresholds(pipe, X_te, y_te, thresholds, use_keyword_fallback=True)
     for r in thr_results:
         print(f"  t={r['threshold']:.2f}  auto={r['automation_rate']:.3f}  "
               f"err={r['error_rate']:.3f}  ({r['auto_count']}/{len(X_te)})")
@@ -206,7 +216,8 @@ def run_full_evaluation():
             "note": "confidence lower because model never saw real shipment IDs in training",
             "results": syn_metrics["results"],
         },
-        "threshold_analysis": thr_results,
+        "threshold_analysis_pure_ml": thr_pure,
+        "threshold_analysis_with_keyword_fallback": thr_results,
         "entity_extractor": {
             **ent_metrics,
             "note": "n=25, basic check not statistical proof, production needs larger set with varied formats",

@@ -52,7 +52,9 @@ two separate test sets:
 
 **Bitext test split** (1197 examples, template phrases):
 - classifier: 99.58% accuracy, 0.9958 F1 macro
-- router at threshold 0.75: 96.2% automation, 0% errors
+- pure ML at threshold 0.75: 96.2% automation, 0% errors
+- ML + keyword fallback at threshold 0.75: 97.8% automation, 0% errors
+- keyword fallback adds ~1.6% automation by catching phrases where the model was right but unsure
 - high accuracy is expected because the dataset is template-based, phrases within an intent are structurally similar, this does not guarantee the same on real customer messages
 
 **Synthetic set** (25 examples with real shipment IDs):
@@ -68,6 +70,13 @@ two separate test sets:
 ## Russian language support
 
 the classifier is trained on English Bitext data and does not understand Russian, for the demo I added a keyword-matching fallback in `router.py` that detects Russian text and maps it to intents via hardcoded keyword lists, confidence is fixed at 0.8 (not a real probability), this is a demo stub not a production feature, for real multilingual support a translator or a separate Russian model would be needed
+
+the same keyword fallback also runs on English when the ML model is unsure, this is a hybrid ML + rule-based approach, the threshold analysis in the report shows both pure ML and ML + keyword numbers separately
+
+## Thresholds
+
+- demo (app.py, CLI, Streamlit): threshold 0.5, bot responds more often for demonstration
+- production recommendation: threshold 0.75, 96.2% automation with pure ML and 0% errors, or 97.8% with keyword fallback
 
 ## Setup
 

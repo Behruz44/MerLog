@@ -291,7 +291,65 @@
       }
     ]
   },
-  "threshold_analysis": [
+  "threshold_analysis_pure_ml": [
+    {
+      "threshold": 0.5,
+      "automation_rate": 0.9933166248955723,
+      "error_rate": 0.0,
+      "auto_count": 1189,
+      "error_count": 0
+    },
+    {
+      "threshold": 0.6,
+      "automation_rate": 0.9866332497911445,
+      "error_rate": 0.0,
+      "auto_count": 1181,
+      "error_count": 0
+    },
+    {
+      "threshold": 0.7,
+      "automation_rate": 0.9766081871345029,
+      "error_rate": 0.0,
+      "auto_count": 1169,
+      "error_count": 0
+    },
+    {
+      "threshold": 0.75,
+      "automation_rate": 0.9624060150375939,
+      "error_rate": 0.0,
+      "auto_count": 1152,
+      "error_count": 0
+    },
+    {
+      "threshold": 0.8,
+      "automation_rate": 0.9473684210526315,
+      "error_rate": 0.0,
+      "auto_count": 1134,
+      "error_count": 0
+    },
+    {
+      "threshold": 0.85,
+      "automation_rate": 0.9139515455304928,
+      "error_rate": 0.0,
+      "auto_count": 1094,
+      "error_count": 0
+    },
+    {
+      "threshold": 0.9,
+      "automation_rate": 0.8546365914786967,
+      "error_rate": 0.0,
+      "auto_count": 1023,
+      "error_count": 0
+    },
+    {
+      "threshold": 0.95,
+      "automation_rate": 0.6900584795321637,
+      "error_rate": 0.0,
+      "auto_count": 826,
+      "error_count": 0
+    }
+  ],
+  "threshold_analysis_with_keyword_fallback": [
     {
       "threshold": 0.5,
       "automation_rate": 0.9958228905597326,

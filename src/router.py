@@ -16,11 +16,9 @@ class RouterDecision:
 
 
 DEFAULT_THRESHOLD = 0.5
-# порог подбирал не на глаз, прогнал тестовый сет при разных значениях
-# и посмотрел на threshold_curve.png в репорте, 0.7 бот берёт больше
-# запросов но рискованнее, 0.8 безопаснее но половина уходит оператору
-# и смысл бота теряется, для демо поставил 0.5 чтобы бот отвечал чаще,
-# для продакшна лучше 0.75: 96% автоматизации и 0 ошибок на Bitext split
+# порог для демо, бот отвечает чаще чтобы показать как работает,
+# для продакшна лучше 0.75: 96.2% автоматизации на чистом ML и 0 ошибок,
+# с keyword подстраховкой 97.8%, цифры в report/evaluation_results.json
 
 CYRILLIC_RE = re.compile(r"[а-яёА-ЯЁ]")
 
@@ -82,7 +80,7 @@ def classify_english_keywords(text):
     return best, 0.8
 
 
-def route(text, pipe, threshold=DEFAULT_THRESHOLD, response_fn=None):
+def route(text, pipe, threshold=DEFAULT_THRESHOLD, response_fn=None, use_keyword_fallback=True):
     lang = detect_language(text)
     entities = extract_entities(text)
     shipment_id = entities.get("shipment_id")
@@ -94,7 +92,7 @@ def route(text, pipe, threshold=DEFAULT_THRESHOLD, response_fn=None):
     else:
         intent, confidence = predict(pipe, text)
         # если модель неуверенна, пробуем keyword подстраховку
-        if confidence < threshold:
+        if use_keyword_fallback and confidence < threshold:
             kw_intent, kw_conf = classify_english_keywords(text)
             if kw_intent is not None:
                 intent, confidence = kw_intent, kw_conf
@@ -125,13 +123,13 @@ def route(text, pipe, threshold=DEFAULT_THRESHOLD, response_fn=None):
     )
 
 
-def evaluate_thresholds(pipe, texts, true_intents, thresholds, response_fn=None):
+def evaluate_thresholds(pipe, texts, true_intents, thresholds, response_fn=None, use_keyword_fallback=True):
     results = []
     for t in thresholds:
         auto_count = 0
         error_count = 0
         for text, true_intent in zip(texts, true_intents):
-            decision = route(text, pipe, threshold=t, response_fn=response_fn)
+            decision = route(text, pipe, threshold=t, response_fn=response_fn, use_keyword_fallback=use_keyword_fallback)
             if decision.auto_respond:
                 auto_count += 1
                 if decision.intent != true_intent:
