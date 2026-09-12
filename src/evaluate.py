@@ -41,10 +41,12 @@ def evaluate_on_bitext_split(pipe, df):
     }
 
 
-def evaluate_on_synthetic(pipe, use_keyword_fallback=True):
+def evaluate_on_synthetic(pipe, use_keyword_fallback=True, threshold=0.5):
     # метрики на synthetic наборе с реальными shipment ID, тут фразы
     # написаны руками и ближе к реальным обращениям, confidence ниже
-    # потому что модель не видела таких формулировок в тренировке
+    # потому что модель не видела таких формулировок в тренировке,
+    # threshold передаётся явно чтобы можно было проверить и на 0.5
+    # (демо) и на 0.75 (продакшн)
     synthetic_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         "data", "processed", "synthetic_entities.json"
@@ -60,7 +62,7 @@ def evaluate_on_synthetic(pipe, use_keyword_fallback=True):
     for item in data:
         text = item["text"]
         expected = item["intent"]
-        decision = route(text, pipe, response_fn=generate_response, use_keyword_fallback=use_keyword_fallback)
+        decision = route(text, pipe, threshold=threshold, response_fn=generate_response, use_keyword_fallback=use_keyword_fallback)
         is_correct = decision.intent == expected
         if decision.auto_respond:
             auto += 1
@@ -93,6 +95,7 @@ def evaluate_on_synthetic(pipe, use_keyword_fallback=True):
         "n_escalated": escalated,
         "auto_accuracy": auto_accuracy,
         "escalation_rate": escalation_rate,
+        "threshold": threshold,
         "n_misclassifications": len(misclassifications),
         "misclassifications": misclassifications,
         "results": results,
@@ -187,27 +190,31 @@ def run_full_evaluation():
 
     # --- Synthetic set ---
     print("\n=== Synthetic set (real shipment IDs) ===")
-    print("-- pure ML (no keyword fallback) --")
-    syn_pure = evaluate_on_synthetic(pipe, use_keyword_fallback=False)
-    print(f"n_total:        {syn_pure['n_total']}")
-    print(f"n_auto:         {syn_pure['n_auto']}")
-    print(f"n_escalated:    {syn_pure['n_escalated']}")
-    print(f"auto_accuracy:  {syn_pure['auto_accuracy']:.4f}")
-    print(f"escalation_rate: {syn_pure['escalation_rate']:.4f}")
-    print(f"misclassifications: {syn_pure['n_misclassifications']}")
+    print("-- pure ML, threshold=0.5 (demo) --")
+    syn_pure = evaluate_on_synthetic(pipe, use_keyword_fallback=False, threshold=0.5)
+    print(f"n_auto: {syn_pure['n_auto']}/{syn_pure['n_total']}  "
+          f"auto_acc: {syn_pure['auto_accuracy']:.4f}  "
+          f"escal: {syn_pure['n_escalated']}  miss: {syn_pure['n_misclassifications']}")
     for m in syn_pure["misclassifications"]:
-        print(f"  MISS: '{m['text'][:50]}' -> {m['predicted']} (expected {m['expected']})")
+        print(f"  MISS: '{m['text'][:50]}' -> {m['predicted']} (expected {m['expected']}, conf={m['confidence']})")
 
-    print("-- ML + keyword fallback --")
-    syn_metrics = evaluate_on_synthetic(pipe, use_keyword_fallback=True)
-    print(f"n_total:        {syn_metrics['n_total']}")
-    print(f"n_auto:         {syn_metrics['n_auto']}")
-    print(f"n_escalated:    {syn_metrics['n_escalated']}")
-    print(f"auto_accuracy:  {syn_metrics['auto_accuracy']:.4f}")
-    print(f"escalation_rate: {syn_metrics['escalation_rate']:.4f}")
-    print(f"misclassifications: {syn_metrics['n_misclassifications']}")
+    print("-- ML + keyword, threshold=0.5 (demo) --")
+    syn_metrics = evaluate_on_synthetic(pipe, use_keyword_fallback=True, threshold=0.5)
+    print(f"n_auto: {syn_metrics['n_auto']}/{syn_metrics['n_total']}  "
+          f"auto_acc: {syn_metrics['auto_accuracy']:.4f}  "
+          f"escal: {syn_metrics['n_escalated']}  miss: {syn_metrics['n_misclassifications']}")
     for m in syn_metrics["misclassifications"]:
-        print(f"  MISS: '{m['text'][:50]}' -> {m['predicted']} (expected {m['expected']})")
+        print(f"  MISS: '{m['text'][:50]}' -> {m['predicted']} (expected {m['expected']}, conf={m['confidence']})")
+
+    # продакшн порог 0.75 на synthetic — отдельная проверка
+    print("-- ML + keyword, threshold=0.75 (production) --")
+    syn_prod = evaluate_on_synthetic(pipe, use_keyword_fallback=True, threshold=0.75)
+    print(f"n_auto: {syn_prod['n_auto']}/{syn_prod['n_total']}  "
+          f"auto_acc: {syn_prod['auto_accuracy']:.4f}  "
+          f"escal: {syn_prod['n_escalated']}  miss: {syn_prod['n_misclassifications']}")
+    for m in syn_prod["misclassifications"]:
+        print(f"  MISS: '{m['text'][:50]}' -> {m['predicted']} (expected {m['expected']}, conf={m['confidence']})")
+    print("(продакшн порог 0.75 не спасает от confident-но-неверных предсказаний)")
     print("(confidence ниже потому что модель не видела реальные ID в тренировке)")
     for r in syn_metrics["results"]:
         status = "AUTO" if r["auto_respond"] else "ESCAL"
@@ -233,6 +240,7 @@ def run_full_evaluation():
             "note": "high accuracy expected: dataset is template-based, phrases within intent are similar",
         },
         "synthetic_set_pure_ml": {
+            "threshold": syn_pure["threshold"],
             "n_total": syn_pure["n_total"],
             "n_auto": syn_pure["n_auto"],
             "n_escalated": syn_pure["n_escalated"],
@@ -244,6 +252,7 @@ def run_full_evaluation():
             "results": syn_pure["results"],
         },
         "synthetic_set_with_keyword_fallback": {
+            "threshold": syn_metrics["threshold"],
             "n_total": syn_metrics["n_total"],
             "n_auto": syn_metrics["n_auto"],
             "n_escalated": syn_metrics["n_escalated"],
@@ -253,6 +262,18 @@ def run_full_evaluation():
             "misclassifications": syn_metrics["misclassifications"],
             "note": "ML + keyword fallback, keyword rules catch phrases where model was unsure",
             "results": syn_metrics["results"],
+        },
+        "synthetic_set_production_threshold_0.75": {
+            "threshold": syn_prod["threshold"],
+            "n_total": syn_prod["n_total"],
+            "n_auto": syn_prod["n_auto"],
+            "n_escalated": syn_prod["n_escalated"],
+            "auto_accuracy": syn_prod["auto_accuracy"],
+            "escalation_rate": syn_prod["escalation_rate"],
+            "n_misclassifications": syn_prod["n_misclassifications"],
+            "misclassifications": syn_prod["misclassifications"],
+            "note": "production threshold 0.75 on synthetic set, shows that confident-but-wrong predictions still pass, calibration from Bitext does not fully transfer to less templated phrasing",
+            "results": syn_prod["results"],
         },
         "threshold_analysis_pure_ml": thr_pure,
         "threshold_analysis_with_keyword_fallback": thr_results,

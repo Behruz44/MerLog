@@ -71,6 +71,13 @@ ML + keyword fallback:
 
 confidence is lower because the model never saw real shipment IDs in training, only {{Order Number}} placeholders, keyword fallback adds 3 more auto responses by catching phrases where the model was right but unsure
 
+**Synthetic set at production threshold 0.75**:
+- 19 auto responses (76%), 6 escalations (24%)
+- auto accuracy: 94.7% (18 out of 19 correct)
+- 1 confident-but-wrong: "i want to change the delivery address for MRL-2024-3344" classified as delivery_options with confidence 0.7873, passes the 0.75 threshold but is wrong
+- the second misclassification from the demo threshold ("change recipient name" conf 0.5097) is now correctly escalated because it falls below 0.75
+- takeaway: production threshold calibrated on Bitext test split does not fully protect against confident-but-wrong predictions on less templated phrasing, semantic overlap between change_order and delivery_options remains a risk even at high confidence
+
 **Entity extractor**:
 - 100% precision and recall on 25 examples
 - this is a basic check not statistical proof, production needs a larger set with varied formats (no hyphens, two-digit years, etc)
