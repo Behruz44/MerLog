@@ -41,10 +41,10 @@ def evaluate_on_bitext_split(pipe, df):
     }
 
 
-def evaluate_on_synthetic(pipe):
+def evaluate_on_synthetic(pipe, use_keyword_fallback=True):
     # метрики на synthetic наборе с реальными shipment ID, тут фразы
     # написаны руками и ближе к реальным обращениям, confidence ниже
-    # потомучто модель не видела таких формулировок в тренировке
+    # потому что модель не видела таких формулировок в тренировке
     synthetic_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         "data", "processed", "synthetic_entities.json"
@@ -55,16 +55,24 @@ def evaluate_on_synthetic(pipe):
     correct = 0
     auto = 0
     escalated = 0
+    misclassifications = []
     results = []
     for item in data:
         text = item["text"]
         expected = item["intent"]
-        decision = route(text, pipe, response_fn=generate_response)
+        decision = route(text, pipe, response_fn=generate_response, use_keyword_fallback=use_keyword_fallback)
         is_correct = decision.intent == expected
         if decision.auto_respond:
             auto += 1
             if is_correct:
                 correct += 1
+            else:
+                misclassifications.append({
+                    "text": text,
+                    "expected": expected,
+                    "predicted": decision.intent,
+                    "confidence": round(decision.confidence, 4),
+                })
         else:
             escalated += 1
         results.append({
@@ -85,6 +93,8 @@ def evaluate_on_synthetic(pipe):
         "n_escalated": escalated,
         "auto_accuracy": auto_accuracy,
         "escalation_rate": escalation_rate,
+        "n_misclassifications": len(misclassifications),
+        "misclassifications": misclassifications,
         "results": results,
     }
 
@@ -177,12 +187,27 @@ def run_full_evaluation():
 
     # --- Synthetic set ---
     print("\n=== Synthetic set (real shipment IDs) ===")
-    syn_metrics = evaluate_on_synthetic(pipe)
+    print("-- pure ML (no keyword fallback) --")
+    syn_pure = evaluate_on_synthetic(pipe, use_keyword_fallback=False)
+    print(f"n_total:        {syn_pure['n_total']}")
+    print(f"n_auto:         {syn_pure['n_auto']}")
+    print(f"n_escalated:    {syn_pure['n_escalated']}")
+    print(f"auto_accuracy:  {syn_pure['auto_accuracy']:.4f}")
+    print(f"escalation_rate: {syn_pure['escalation_rate']:.4f}")
+    print(f"misclassifications: {syn_pure['n_misclassifications']}")
+    for m in syn_pure["misclassifications"]:
+        print(f"  MISS: '{m['text'][:50]}' -> {m['predicted']} (expected {m['expected']})")
+
+    print("-- ML + keyword fallback --")
+    syn_metrics = evaluate_on_synthetic(pipe, use_keyword_fallback=True)
     print(f"n_total:        {syn_metrics['n_total']}")
     print(f"n_auto:         {syn_metrics['n_auto']}")
     print(f"n_escalated:    {syn_metrics['n_escalated']}")
     print(f"auto_accuracy:  {syn_metrics['auto_accuracy']:.4f}")
     print(f"escalation_rate: {syn_metrics['escalation_rate']:.4f}")
+    print(f"misclassifications: {syn_metrics['n_misclassifications']}")
+    for m in syn_metrics["misclassifications"]:
+        print(f"  MISS: '{m['text'][:50]}' -> {m['predicted']} (expected {m['expected']})")
     print("(confidence ниже потому что модель не видела реальные ID в тренировке)")
     for r in syn_metrics["results"]:
         status = "AUTO" if r["auto_respond"] else "ESCAL"
@@ -207,13 +232,26 @@ def run_full_evaluation():
             "report": bitext_metrics["report"],
             "note": "high accuracy expected: dataset is template-based, phrases within intent are similar",
         },
-        "synthetic_set": {
+        "synthetic_set_pure_ml": {
+            "n_total": syn_pure["n_total"],
+            "n_auto": syn_pure["n_auto"],
+            "n_escalated": syn_pure["n_escalated"],
+            "auto_accuracy": syn_pure["auto_accuracy"],
+            "escalation_rate": syn_pure["escalation_rate"],
+            "n_misclassifications": syn_pure["n_misclassifications"],
+            "misclassifications": syn_pure["misclassifications"],
+            "note": "pure ML, no keyword fallback, confidence lower because model never saw real shipment IDs in training",
+            "results": syn_pure["results"],
+        },
+        "synthetic_set_with_keyword_fallback": {
             "n_total": syn_metrics["n_total"],
             "n_auto": syn_metrics["n_auto"],
             "n_escalated": syn_metrics["n_escalated"],
             "auto_accuracy": syn_metrics["auto_accuracy"],
             "escalation_rate": syn_metrics["escalation_rate"],
-            "note": "confidence lower because model never saw real shipment IDs in training",
+            "n_misclassifications": syn_metrics["n_misclassifications"],
+            "misclassifications": syn_metrics["misclassifications"],
+            "note": "ML + keyword fallback, keyword rules catch phrases where model was unsure",
             "results": syn_metrics["results"],
         },
         "threshold_analysis_pure_ml": thr_pure,

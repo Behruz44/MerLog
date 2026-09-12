@@ -58,10 +58,18 @@ two separate test sets:
 - high accuracy is expected because the dataset is template-based, phrases within an intent are structurally similar, this does not guarantee the same on real customer messages
 
 **Synthetic set** (25 examples with real shipment IDs):
-- 11 auto responses (44%), 14 escalations (56%)
-- auto accuracy: 90.9% (9 out of 11 correct)
-- 1 misclassification: "change delivery address" classified as delivery_options instead of change_order
-- confidence is lower because the model never saw real shipment IDs in training, only {{Order Number}} placeholders
+
+pure ML (no keyword fallback):
+- 17 auto responses (68%), 8 escalations (32%)
+- auto accuracy: 88.2% (15 out of 17 correct)
+- 2 misclassifications: "change delivery address" and "change recipient name" both classified as delivery_options instead of change_order
+
+ML + keyword fallback:
+- 20 auto responses (80%), 5 escalations (20%)
+- auto accuracy: 90% (18 out of 20 correct)
+- same 2 misclassifications, keyword "change" matches change_order but model overrides with delivery_options on these phrases
+
+confidence is lower because the model never saw real shipment IDs in training, only {{Order Number}} placeholders, keyword fallback adds 3 more auto responses by catching phrases where the model was right but unsure
 
 **Entity extractor**:
 - 100% precision and recall on 25 examples
