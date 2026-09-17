@@ -1,16 +1,13 @@
 import argparse
-import sys
 
-from entity_extractor import extract_entities
-from intent_classifier import load_model, predict
+from intent_classifier import load_model
 from response_generator import generate_response
 from router import DEFAULT_THRESHOLD, route
 
 
 def run_cli(threshold=DEFAULT_THRESHOLD):
     pipe = load_model()
-    print("MerLog Chatbot (CLI). Type 'quit' to exit.")
-    print("-" * 50)
+    print("MerLog Chatbot (CLI). Type 'quit' to exit.\n")
     while True:
         text = input("You: ").strip()
         if text.lower() in ("quit", "exit", "q"):
@@ -41,29 +38,22 @@ def run_streamlit(threshold=DEFAULT_THRESHOLD):
     if user_input:
         decision = route(user_input, pipe, threshold=threshold, response_fn=generate_response)
         st.session_state.history.append({"role": "user", "text": user_input})
-        st.session_state.history.append(
-            {
-                "role": "bot",
-                "text": decision.response,
-                "intent": decision.intent,
-                "confidence": decision.confidence,
-                "shipment_id": decision.shipment_id,
-                "auto": decision.auto_respond,
-            }
-        )
+        st.session_state.history.append({
+            "role": "bot", "text": decision.response, "intent": decision.intent,
+            "confidence": decision.confidence, "shipment_id": decision.shipment_id,
+            "auto": decision.auto_respond,
+        })
 
     for msg in st.session_state.history:
         if msg["role"] == "user":
             st.chat_message("user").write(msg["text"])
-        else:
-            with st.chat_message("assistant"):
-                st.write(msg["text"])
-                if not msg["auto"]:
-                    st.caption("Escalated to human operator")
-                else:
-                    st.caption(
-                        f"intent: {msg['intent']} | confidence: {msg['confidence']:.1%}"
-                    )
+            continue
+        with st.chat_message("assistant"):
+            st.write(msg["text"])
+            if msg["auto"]:
+                st.caption(f"intent: {msg['intent']} | confidence: {msg['confidence']:.1%}")
+            else:
+                st.caption("Escalated to human operator")
 
 
 if __name__ == "__main__":

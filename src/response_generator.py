@@ -1,7 +1,5 @@
 import re
 
-from entity_extractor import extract_shipment_id
-
 
 # шаблоны вместо генерации, сначала думал прикрутить что то вроде Claude
 # для ответов но для статус бота это создаёт больше проблем чем решает,
@@ -122,16 +120,3 @@ def generate_response(intent, shipment_id, text=""):
     if shipment_id:
         return lang_templates["with_id"].format(shipment_id=shipment_id)
     return lang_templates["without_id"]
-
-
-if __name__ == "__main__":
-    for intent in TEMPLATES:
-        print(f"[{intent}] en with_id:")
-        print(f"  {generate_response(intent, 'MRL-2024-8831', 'where is my shipment')}")
-        print(f"[{intent}] ru with_id:")
-        print(f"  {generate_response(intent, 'MRL-2024-8831', 'где мой груз')}")
-        print(f"[{intent}] en without_id:")
-        print(f"  {generate_response(intent, None, 'track my order')}")
-        print(f"[{intent}] ru without_id:")
-        print(f"  {generate_response(intent, None, 'отследить заказ')}")
-        print()

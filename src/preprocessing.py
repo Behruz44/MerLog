@@ -29,28 +29,15 @@ def clean_text(text, keep_placeholders=True):
     return t
 
 
-def tokenize(text):
-    t = clean_text(text)
-    if not t:
-        return []
-    return t.split()
-
-
 def filter_intents(df, intents=None):
-    targets = intents or MERLOG_INTENTS
-    sub = df[df["intent"].isin(targets)].copy()
+    sub = df[df["intent"].isin(intents or MERLOG_INTENTS)].copy()
     sub["clean_instruction"] = sub["instruction"].apply(clean_text)
     sub = sub[sub["clean_instruction"].str.len() > 0]
     return sub.reset_index(drop=True)
 
 
-def load_raw(path):
-    return pd.read_csv(path)
-
-
 def prepare_dataset(raw_path, out_path, intents=None):
-    df = load_raw(raw_path)
-    filtered = filter_intents(df, intents)
+    filtered = filter_intents(pd.read_csv(raw_path), intents)
     filtered.to_csv(out_path, index=False)
     return filtered
 
