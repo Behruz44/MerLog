@@ -4,11 +4,10 @@ import os
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import numpy as np
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
 from sklearn.model_selection import train_test_split
 
-from entity_extractor import evaluate_extractor
+from entity_extractor import SYNTHETIC_PATH, evaluate_extractor
 from intent_classifier import load_model, load_processed, predict
 from response_generator import generate_response
 from router import route, evaluate_thresholds
@@ -16,26 +15,26 @@ from router import route, evaluate_thresholds
 REPORT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "report")
 
 
+def bitext_test_split(df):
+    # тот же split что и в intent_classifier.train, random_state=42
+    _, X_te, _, y_te = train_test_split(
+        df["clean_instruction"].tolist(), df["intent"].tolist(),
+        test_size=0.2, stratify=df["intent"], random_state=42)
+    return X_te, y_te
+
+
 def evaluate_on_bitext_split(pipe, df):
     # метрики на Bitext test split, тут фразы шаблонные и модель на них
     # показывает почти потолок точности, это ожидаемо и не значит что на
     # реальных обращениях будет так же
-    X = df["clean_instruction"].tolist()
-    y = df["intent"].tolist()
-    X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
-
+    X_te, y_te = bitext_test_split(df)
     y_pred = [predict(pipe, t)[0] for t in X_te]
-    acc = accuracy_score(y_te, y_pred)
-    f1 = f1_score(y_te, y_pred, average="macro")
-    report = classification_report(y_te, y_pred, output_dict=True)
-    labels = sorted(set(y))
-    cm = confusion_matrix(y_te, y_pred, labels=labels)
-
+    labels = sorted(set(y_te))
     return {
-        "accuracy": acc,
-        "f1_macro": f1,
-        "report": report,
-        "confusion_matrix": cm.tolist(),
+        "accuracy": accuracy_score(y_te, y_pred),
+        "f1_macro": f1_score(y_te, y_pred, average="macro"),
+        "report": classification_report(y_te, y_pred, output_dict=True),
+        "confusion_matrix": confusion_matrix(y_te, y_pred, labels=labels),
         "labels": labels,
         "n_test": len(y_te),
     }
@@ -47,58 +46,36 @@ def evaluate_on_synthetic(pipe, use_keyword_fallback=True, threshold=0.5):
     # потому что модель не видела таких формулировок в тренировке,
     # threshold передаётся явно чтобы можно было проверить и на 0.5
     # (демо) и на 0.75 (продакшн)
-    synthetic_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "data", "processed", "synthetic_entities.json"
-    )
-    with open(synthetic_path, encoding="utf-8") as f:
-        data = json.load(f)
+    with open(SYNTHETIC_PATH, encoding="utf-8") as f:
+        examples = json.load(f)
 
-    correct = 0
-    auto = 0
-    escalated = 0
-    misclassifications = []
-    results = []
-    for item in data:
-        text = item["text"]
-        expected = item["intent"]
-        decision = route(text, pipe, threshold=threshold, response_fn=generate_response, use_keyword_fallback=use_keyword_fallback)
-        is_correct = decision.intent == expected
-        if decision.auto_respond:
-            auto += 1
-            if is_correct:
-                correct += 1
-            else:
-                misclassifications.append({
-                    "text": text,
-                    "expected": expected,
-                    "predicted": decision.intent,
-                    "confidence": round(decision.confidence, 4),
-                })
-        else:
-            escalated += 1
-        results.append({
-            "text": text,
-            "expected": expected,
+    rows = []
+    for ex in examples:
+        decision = route(ex["text"], pipe, threshold, generate_response, use_keyword_fallback)
+        rows.append({
+            "text": ex["text"],
+            "expected": ex["intent"],
             "predicted": decision.intent,
             "confidence": round(decision.confidence, 4),
             "shipment_id": decision.shipment_id,
             "auto_respond": decision.auto_respond,
-            "correct": is_correct,
+            "correct": decision.intent == ex["intent"],
         })
 
-    auto_accuracy = correct / auto if auto > 0 else 0
-    escalation_rate = escalated / len(data)
+    auto_rows = [r for r in rows if r["auto_respond"]]
+    misses = [{k: r[k] for k in ("text", "expected", "predicted", "confidence")}
+              for r in auto_rows if not r["correct"]]
+    n_auto = len(auto_rows)
     return {
-        "n_total": len(data),
-        "n_auto": auto,
-        "n_escalated": escalated,
-        "auto_accuracy": auto_accuracy,
-        "escalation_rate": escalation_rate,
         "threshold": threshold,
-        "n_misclassifications": len(misclassifications),
-        "misclassifications": misclassifications,
-        "results": results,
+        "n_total": len(rows),
+        "n_auto": n_auto,
+        "n_escalated": len(rows) - n_auto,
+        "auto_accuracy": (n_auto - len(misses)) / n_auto if n_auto else 0,
+        "escalation_rate": (len(rows) - n_auto) / len(rows),
+        "n_misclassifications": len(misses),
+        "misclassifications": misses,
+        "results": rows,
     }
 
 
@@ -143,28 +120,36 @@ def plot_threshold_curve(threshold_results, out_path):
     plt.close(fig)
 
 
+def print_threshold_rows(rows, n_test):
+    for r in rows:
+        print(f"  t={r['threshold']:.2f}  auto={r['automation_rate']:.3f}  "
+              f"err={r['error_rate']:.3f}  ({r['auto_count']}/{n_test})")
+
+
+def print_synthetic_summary(syn):
+    print(f"n_auto: {syn['n_auto']}/{syn['n_total']}  auto_acc: {syn['auto_accuracy']:.4f}  "
+          f"escal: {syn['n_escalated']}  miss: {syn['n_misclassifications']}")
+    for m in syn["misclassifications"]:
+        print(f"  MISS: '{m['text'][:50]}' -> {m['predicted']} (expected {m['expected']}, conf={m['confidence']})")
+
+
 def run_full_evaluation():
     os.makedirs(REPORT_DIR, exist_ok=True)
     df = load_processed()
     pipe = load_model()
 
-
     print("=== Bitext test split ===")
-    bitext_metrics = evaluate_on_bitext_split(pipe, df)
-    print(f"accuracy:  {bitext_metrics['accuracy']:.4f}")
-    print(f"f1_macro: {bitext_metrics['f1_macro']:.4f}")
-    print(f"n_test:   {bitext_metrics['n_test']}")
+    bitext = evaluate_on_bitext_split(pipe, df)
+    print(f"accuracy:  {bitext['accuracy']:.4f}")
+    print(f"f1_macro: {bitext['f1_macro']:.4f}")
+    print(f"n_test:   {bitext['n_test']}")
     print("(высокая точность ожидаема: датасет шаблонный, фразы внутри интента похожи)")
-
-    cm = np.array(bitext_metrics["confusion_matrix"])
-    plot_confusion_matrix(cm, bitext_metrics["labels"],
+    plot_confusion_matrix(bitext["confusion_matrix"], bitext["labels"],
                           os.path.join(REPORT_DIR, "confusion_matrix.png"))
 
-    # --- Threshold analysis on Bitext split ---
+    # threshold analysis на Bitext split
     print("\n=== Threshold analysis (Bitext test split) ===")
-    X = df["clean_instruction"].tolist()
-    y = df["intent"].tolist()
-    _, X_te, _, y_te = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
+    X_te, y_te = bitext_test_split(df)
     # взял широкий диапазон порогов от 0.5 до 0.95 потому что хотел увидеть
     # всю картину целиком а не только правильную точку, ниже 0.5 уже опасно
     # отдавать боту а выше 0.95 автоматизация падает так сильно что бот
@@ -176,109 +161,66 @@ def run_full_evaluation():
     # чистый ML без keyword подстраховки
     print("-- pure ML (no keyword fallback) --")
     thr_pure = evaluate_thresholds(pipe, X_te, y_te, thresholds, use_keyword_fallback=False)
-    for r in thr_pure:
-        print(f"  t={r['threshold']:.2f}  auto={r['automation_rate']:.3f}  "
-              f"err={r['error_rate']:.3f}  ({r['auto_count']}/{len(X_te)})")
+    print_threshold_rows(thr_pure, len(X_te))
 
     # ML плюс keyword подстраховка
     print("-- ML + keyword fallback --")
-    thr_results = evaluate_thresholds(pipe, X_te, y_te, thresholds, use_keyword_fallback=True)
-    for r in thr_results:
-        print(f"  t={r['threshold']:.2f}  auto={r['automation_rate']:.3f}  "
-              f"err={r['error_rate']:.3f}  ({r['auto_count']}/{len(X_te)})")
-    plot_threshold_curve(thr_results, os.path.join(REPORT_DIR, "threshold_curve.png"))
+    thr_kw = evaluate_thresholds(pipe, X_te, y_te, thresholds, use_keyword_fallback=True)
+    print_threshold_rows(thr_kw, len(X_te))
+    plot_threshold_curve(thr_kw, os.path.join(REPORT_DIR, "threshold_curve.png"))
 
-    # --- Synthetic set ---
+    # synthetic set с реальными shipment ID
     print("\n=== Synthetic set (real shipment IDs) ===")
     print("-- pure ML, threshold=0.5 (demo) --")
     syn_pure = evaluate_on_synthetic(pipe, use_keyword_fallback=False, threshold=0.5)
-    print(f"n_auto: {syn_pure['n_auto']}/{syn_pure['n_total']}  "
-          f"auto_acc: {syn_pure['auto_accuracy']:.4f}  "
-          f"escal: {syn_pure['n_escalated']}  miss: {syn_pure['n_misclassifications']}")
-    for m in syn_pure["misclassifications"]:
-        print(f"  MISS: '{m['text'][:50]}' -> {m['predicted']} (expected {m['expected']}, conf={m['confidence']})")
+    print_synthetic_summary(syn_pure)
 
     print("-- ML + keyword, threshold=0.5 (demo) --")
-    syn_metrics = evaluate_on_synthetic(pipe, use_keyword_fallback=True, threshold=0.5)
-    print(f"n_auto: {syn_metrics['n_auto']}/{syn_metrics['n_total']}  "
-          f"auto_acc: {syn_metrics['auto_accuracy']:.4f}  "
-          f"escal: {syn_metrics['n_escalated']}  miss: {syn_metrics['n_misclassifications']}")
-    for m in syn_metrics["misclassifications"]:
-        print(f"  MISS: '{m['text'][:50]}' -> {m['predicted']} (expected {m['expected']}, conf={m['confidence']})")
+    syn_kw = evaluate_on_synthetic(pipe, use_keyword_fallback=True, threshold=0.5)
+    print_synthetic_summary(syn_kw)
 
     # продакшн порог 0.75 на synthetic — отдельная проверка
     print("-- ML + keyword, threshold=0.75 (production) --")
     syn_prod = evaluate_on_synthetic(pipe, use_keyword_fallback=True, threshold=0.75)
-    print(f"n_auto: {syn_prod['n_auto']}/{syn_prod['n_total']}  "
-          f"auto_acc: {syn_prod['auto_accuracy']:.4f}  "
-          f"escal: {syn_prod['n_escalated']}  miss: {syn_prod['n_misclassifications']}")
-    for m in syn_prod["misclassifications"]:
-        print(f"  MISS: '{m['text'][:50]}' -> {m['predicted']} (expected {m['expected']}, conf={m['confidence']})")
+    print_synthetic_summary(syn_prod)
     print("(продакшн порог 0.75 не спасает от confident-но-неверных предсказаний)")
     print("(confidence ниже потому что модель не видела реальные ID в тренировке)")
-    for r in syn_metrics["results"]:
+    for r in syn_kw["results"]:
         status = "AUTO" if r["auto_respond"] else "ESCAL"
         ok = "OK" if r["correct"] else "MISS"
         print(f"  [{status}/{ok}] conf={r['confidence']:.3f} {r['text'][:40]:40s} "
               f"-> {r['predicted']} (expected {r['expected']})")
 
-    # --- Entity extractor ---
+    # entity extractor
     print("\n=== Entity extractor ===")
-    ent_metrics = evaluate_extractor()
-    print(f"precision: {ent_metrics['precision']:.4f}")
-    print(f"recall:    {ent_metrics['recall']:.4f}")
-    print(f"f1:        {ent_metrics['f1']:.4f}")
-    print(f"(n={ent_metrics['total']}, это базовая проверка а не статистика)")
+    ent = evaluate_extractor()
+    print(f"precision: {ent['precision']:.4f}")
+    print(f"recall:    {ent['recall']:.4f}")
+    print(f"f1:        {ent['f1']:.4f}")
+    print(f"(n={ent['total']}, это базовая проверка а не статистика)")
 
-    # --- Save report ---
+    # сохранение отчёта
     full_report = {
         "bitext_test_split": {
-            "accuracy": bitext_metrics["accuracy"],
-            "f1_macro": bitext_metrics["f1_macro"],
-            "n_test": bitext_metrics["n_test"],
-            "report": bitext_metrics["report"],
+            **{k: bitext[k] for k in ("accuracy", "f1_macro", "n_test", "report")},
             "note": "high accuracy expected: dataset is template-based, phrases within intent are similar",
         },
         "synthetic_set_pure_ml": {
-            "threshold": syn_pure["threshold"],
-            "n_total": syn_pure["n_total"],
-            "n_auto": syn_pure["n_auto"],
-            "n_escalated": syn_pure["n_escalated"],
-            "auto_accuracy": syn_pure["auto_accuracy"],
-            "escalation_rate": syn_pure["escalation_rate"],
-            "n_misclassifications": syn_pure["n_misclassifications"],
-            "misclassifications": syn_pure["misclassifications"],
+            **syn_pure,
             "note": "pure ML, no keyword fallback, confidence lower because model never saw real shipment IDs in training",
-            "results": syn_pure["results"],
         },
         "synthetic_set_with_keyword_fallback": {
-            "threshold": syn_metrics["threshold"],
-            "n_total": syn_metrics["n_total"],
-            "n_auto": syn_metrics["n_auto"],
-            "n_escalated": syn_metrics["n_escalated"],
-            "auto_accuracy": syn_metrics["auto_accuracy"],
-            "escalation_rate": syn_metrics["escalation_rate"],
-            "n_misclassifications": syn_metrics["n_misclassifications"],
-            "misclassifications": syn_metrics["misclassifications"],
+            **syn_kw,
             "note": "ML + keyword fallback, keyword rules catch phrases where model was unsure",
-            "results": syn_metrics["results"],
         },
         "synthetic_set_production_threshold_0.75": {
-            "threshold": syn_prod["threshold"],
-            "n_total": syn_prod["n_total"],
-            "n_auto": syn_prod["n_auto"],
-            "n_escalated": syn_prod["n_escalated"],
-            "auto_accuracy": syn_prod["auto_accuracy"],
-            "escalation_rate": syn_prod["escalation_rate"],
-            "n_misclassifications": syn_prod["n_misclassifications"],
-            "misclassifications": syn_prod["misclassifications"],
+            **syn_prod,
             "note": "production threshold 0.75 on synthetic set, shows that confident-but-wrong predictions still pass, calibration from Bitext does not fully transfer to less templated phrasing",
-            "results": syn_prod["results"],
         },
         "threshold_analysis_pure_ml": thr_pure,
-        "threshold_analysis_with_keyword_fallback": thr_results,
+        "threshold_analysis_with_keyword_fallback": thr_kw,
         "entity_extractor": {
-            **ent_metrics,
+            **ent,
             "note": "n=25, basic check not statistical proof, production needs larger set with varied formats",
         },
     }

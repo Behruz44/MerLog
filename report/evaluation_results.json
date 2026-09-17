@@ -78,7 +78,6 @@
         "confidence": 0.5097
       }
     ],
-    "note": "pure ML, no keyword fallback, confidence lower because model never saw real shipment IDs in training",
     "results": [
       {
         "text": "where is my shipment MRL-2024-8831 it was supposed to arrive yesterday",
@@ -305,7 +304,8 @@
         "auto_respond": true,
         "correct": true
       }
-    ]
+    ],
+    "note": "pure ML, no keyword fallback, confidence lower because model never saw real shipment IDs in training"
   },
   "synthetic_set_with_keyword_fallback": {
     "threshold": 0.5,
@@ -329,7 +329,6 @@
         "confidence": 0.5097
       }
     ],
-    "note": "ML + keyword fallback, keyword rules catch phrases where model was unsure",
     "results": [
       {
         "text": "where is my shipment MRL-2024-8831 it was supposed to arrive yesterday",
@@ -556,7 +555,8 @@
         "auto_respond": true,
         "correct": true
       }
-    ]
+    ],
+    "note": "ML + keyword fallback, keyword rules catch phrases where model was unsure"
   },
   "synthetic_set_production_threshold_0.75": {
     "threshold": 0.75,
@@ -574,7 +574,6 @@
         "confidence": 0.7873
       }
     ],
-    "note": "production threshold 0.75 on synthetic set, shows that confident-but-wrong predictions still pass, calibration from Bitext does not fully transfer to less templated phrasing",
     "results": [
       {
         "text": "where is my shipment MRL-2024-8831 it was supposed to arrive yesterday",
@@ -801,7 +800,8 @@
         "auto_respond": true,
         "correct": true
       }
-    ]
+    ],
+    "note": "production threshold 0.75 on synthetic set, shows that confident-but-wrong predictions still pass, calibration from Bitext does not fully transfer to less templated phrasing"
   },
   "threshold_analysis_pure_ml": [
     {

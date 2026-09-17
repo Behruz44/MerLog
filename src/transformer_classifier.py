@@ -1,21 +1,16 @@
 import os
 
 import numpy as np
-import pandas as pd
 import torch
 from sklearn.metrics import accuracy_score, f1_score, classification_report
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
 
+from intent_classifier import PROCESSED_DIR, load_processed
 from preprocessing import clean_text, MERLOG_INTENTS
 
 MODEL_NAME = "distilbert-base-uncased"
-DEFAULT_SAVE_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "data",
-    "processed",
-    "distilbert_intent",
-)
+DEFAULT_SAVE_DIR = os.path.join(PROCESSED_DIR, "distilbert_intent")
 
 LABEL2ID = {label: i for i, label in enumerate(MERLOG_INTENTS)}
 ID2LABEL = {i: label for label, i in LABEL2ID.items()}
@@ -50,25 +45,10 @@ class IntentDataset(Dataset):
         }
 
 
-def load_processed(path: str | None = None) -> pd.DataFrame:
-    if path is None:
-        path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "data",
-            "processed",
-            "intents_filtered.csv",
-        )
-    df = pd.read_csv(path)
-    df["clean_instruction"] = df["clean_instruction"].fillna("").astype(str)
-    return df
-
-
 def compute_metrics(pred):
-    labels = pred.label_ids
     preds = np.argmax(pred.predictions, axis=1)
-    acc = accuracy_score(labels, preds)
-    f1 = f1_score(labels, preds, average="macro")
-    return {"accuracy": acc, "f1_macro": f1}
+    return {"accuracy": accuracy_score(pred.label_ids, preds),
+            "f1_macro": f1_score(pred.label_ids, preds, average="macro")}
 
 
 def train_transformer(df, epochs=3, batch_size=16, test_size=0.2, save_dir=None):
