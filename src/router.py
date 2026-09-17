@@ -1,8 +1,8 @@
-import re
 from dataclasses import dataclass
 
 from entity_extractor import extract_entities
 from intent_classifier import predict
+from response_generator import detect_language
 
 
 @dataclass
@@ -19,8 +19,6 @@ DEFAULT_THRESHOLD = 0.5
 # порог для демо, бот отвечает чаще чтобы показать как работает,
 # для продакшна лучше 0.75: 96.2% автоматизации на чистом ML и 0 ошибок,
 # с keyword подстраховкой 97.8%, цифры в report/evaluation_results.json
-
-CYRILLIC_RE = re.compile(r"[а-яёА-ЯЁ]")
 
 # это демо-заглушка а не ML, классификатор обучен на английском
 # и русский не понимает, для русского тут простой keyword matching с
@@ -46,123 +44,65 @@ EN_KEYWORDS = {
 }
 
 
-def detect_language(text):
-    if CYRILLIC_RE.search(text):
-        return "ru"
-    return "en"
+ESCALATE_MSG = {
+    "ru": "Не уверен, что правильно понял запрос. Переключу вас на оператора MerLog.",
+    "en": "I'm not confident I understood your request correctly. "
+          "Let me connect you with a MerLog operator who can help.",
+}
 
 
-def classify_russian(text):
-    t = text.lower()
-    scores = {}
-    for intent, keywords in RU_KEYWORDS.items():
-        score = sum(1 for kw in keywords if kw in t)
-        if score > 0:
-            scores[intent] = score
-    if not scores:
-        return None, 0.0
-    best = max(scores, key=scores.get)
+def keyword_match(text, keywords):
     # confidence условный, 0.8 чтобы пройти порог 0.5
-    return best, 0.8
-
-
-def classify_english_keywords(text):
-    # подстраховка для английских фраз где модель путается
-    t = text.lower()
-    scores = {}
-    for intent, keywords in EN_KEYWORDS.items():
-        score = sum(1 for kw in keywords if kw in t)
-        if score > 0:
-            scores[intent] = score
-    if not scores:
+    lowered = text.lower()
+    hits = {intent: sum(kw in lowered for kw in kws) for intent, kws in keywords.items()}
+    hits = {k: v for k, v in hits.items() if v}
+    if not hits:
         return None, 0.0
-    best = max(scores, key=scores.get)
-    return best, 0.8
+    return max(hits, key=hits.get), 0.8
 
 
 def route(text, pipe, threshold=DEFAULT_THRESHOLD, response_fn=None, use_keyword_fallback=True):
     lang = detect_language(text)
-    entities = extract_entities(text)
-    shipment_id = entities.get("shipment_id")
+    shipment_id = extract_entities(text)["shipment_id"]
 
     if lang == "ru":
-        intent, confidence = classify_russian(text)
+        intent, confidence = keyword_match(text, RU_KEYWORDS)
         if intent is None:
             intent, confidence = "unknown", 0.0
     else:
         intent, confidence = predict(pipe, text)
         # если модель неуверенна, пробуем keyword подстраховку
         if use_keyword_fallback and confidence < threshold:
-            kw_intent, kw_conf = classify_english_keywords(text)
+            kw_intent, kw_conf = keyword_match(text, EN_KEYWORDS)
             if kw_intent is not None:
                 intent, confidence = kw_intent, kw_conf
 
     auto = confidence >= threshold
-    response = ""
-    if auto:
-        if response_fn is not None:
-            response = response_fn(intent, shipment_id, text)
-        else:
-            response = ""
+    if not auto:
+        response = ESCALATE_MSG[lang]
+    elif response_fn:
+        response = response_fn(intent, shipment_id, text)
     else:
-        if lang == "ru":
-            response = "Не уверен, что правильно понял запрос. Переключу вас на оператора MerLog."
-        else:
-            response = (
-                "I'm not confident I understood your request correctly. "
-                "Let me connect you with a MerLog operator who can help."
-            )
+        response = ""
 
-    return RouterDecision(
-        intent=intent,
-        confidence=confidence,
-        shipment_id=shipment_id,
-        auto_respond=auto,
-        response=response,
-        raw_text=text,
-    )
+    return RouterDecision(intent, confidence, shipment_id, auto, response, text)
 
 
 def evaluate_thresholds(pipe, texts, true_intents, thresholds, response_fn=None, use_keyword_fallback=True):
-    results = []
-    for t in thresholds:
-        auto_count = 0
-        error_count = 0
+    rows = []
+    for thr in thresholds:
+        auto_count = error_count = 0
         for text, true_intent in zip(texts, true_intents):
-            decision = route(text, pipe, threshold=t, response_fn=response_fn, use_keyword_fallback=use_keyword_fallback)
-            if decision.auto_respond:
-                auto_count += 1
-                if decision.intent != true_intent:
-                    error_count += 1
-        automation_rate = auto_count / len(texts) if texts else 0
-        error_rate = error_count / auto_count if auto_count > 0 else 0
-        results.append(
-            {
-                "threshold": t,
-                "automation_rate": automation_rate,
-                "error_rate": error_rate,
-                "auto_count": auto_count,
-                "error_count": error_count,
-            }
-        )
-    return results
-
-
-if __name__ == "__main__":
-    from intent_classifier import load_model
-
-    pipe = load_model()
-    samples = [
-        "where is my shipment MRL-2024-8831",
-        "i want to complain about the damaged box",
-        "cancel order MRL-2024-7765 now",
-        "где мой груз MRL-2024-8831",
-        "хочу отменить заказ MRL-2024-7765",
-        "хочу пожаловаться на доставку",
-        "xyz qwerty asdf random nonsense",
-    ]
-    for s in samples:
-        d = route(s, pipe)
-        status = "AUTO" if d.auto_respond else "ESCALATE"
-        print(f"[{status}] conf={d.confidence:.3f} intent={d.intent:20s} id={d.shipment_id}")
-        print(f"        {d.response}")
+            decision = route(text, pipe, thr, response_fn, use_keyword_fallback)
+            if not decision.auto_respond:
+                continue
+            auto_count += 1
+            error_count += decision.intent != true_intent
+        rows.append({
+            "threshold": thr,
+            "automation_rate": auto_count / len(texts),
+            "error_rate": error_count / auto_count if auto_count else 0,
+            "auto_count": auto_count,
+            "error_count": error_count,
+        })
+    return rows
